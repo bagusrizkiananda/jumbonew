@@ -6,8 +6,6 @@ import string
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.model_selection import train_test_split
-from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
-from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 import pickle
 import gzip
 
@@ -21,11 +19,12 @@ classification_results = pd.read_csv('naivebayes_classification_results.csv')
 with gzip.open('naive_bayes_classifier.pkl.gz', 'rb') as file:
     nb_model = pickle.load(file)
 
-# Preprocessing functions
-factory = StemmerFactory()
-stemmer = factory.create_stemmer()
-stopword_factory = StopWordRemoverFactory()
-stopwords = stopword_factory.get_stop_words()
+# Buat stopword manual
+stopwords = set([
+    'yang', 'dan', 'di', 'ke', 'dari', 'pada', 'untuk', 'dengan', 'adalah', 'itu',
+    'ini', 'karena', 'atau', 'saya', 'kamu', 'dia', 'mereka', 'kita', 'dalam', 'tidak',
+    'bukan', 'akan', 'telah', 'sudah', 'belum', 'bisa', 'dapat'
+])
 
 def preprocessing(text):
     text = text.lower()
@@ -39,13 +38,9 @@ def remove_stopwords(text):
     filtered = [word for word in tokens if word not in stopwords]
     return ' '.join(filtered)
 
-def stemming(text):
-    return stemmer.stem(text)
-
 def full_preprocess(text):
     text = preprocessing(text)
     text = remove_stopwords(text)
-    text = stemming(text)
     return text
 
 # Streamlit Interface
@@ -73,10 +68,8 @@ elif menu == 'Preprocessing':
         if text_input:
             clean = preprocessing(text_input)
             stop_removed = remove_stopwords(clean)
-            stemmed = stemming(stop_removed)
             st.write('Hasil Cleaning:', clean)
             st.write('Hasil Stopword Removal:', stop_removed)
-            st.write('Hasil Stemming:', stemmed)
         else:
             st.warning('Mohon masukkan kalimat terlebih dahulu.')
 
