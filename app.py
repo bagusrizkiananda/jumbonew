@@ -1,32 +1,110 @@
+# app.py
 import streamlit as st
+import pandas as pd
+import re
+import string
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.model_selection import train_test_split
+from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
+from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 import pickle
 import gzip
 
-# Load GZIP model ✅
+# Load dataset
+film_df = pd.read_csv('film_jumbo.csv')
+stemming_df = pd.read_csv('StemmingJumbo.csv')
+preprocessed_df = pd.read_csv('data_preprocessed.csv')
+classification_results = pd.read_csv('naivebayes_classification_results.csv')
+
+# Load Naive Bayes Model
 with gzip.open('naive_bayes_classifier.pkl.gz', 'rb') as file:
-    model = pickle.load(file)
+    nb_model = pickle.load(file)
 
-# Streamlit App
-st.set_page_config(page_title="Aplikasi Analisis Sentimen", layout="wide")
+# Preprocessing functions
+factory = StemmerFactory()
+stemmer = factory.create_stemmer()
+stopword_factory = StopWordRemoverFactory()
+stopwords = stopword_factory.get_stop_words()
 
-st.title("Analisis Sentimen Review")
+def preprocessing(text):
+    text = text.lower()
+    text = re.sub(r'\d+', '', text)
+    text = text.translate(str.maketrans('', '', string.punctuation))
+    text = text.strip()
+    return text
 
-st.write("Masukkan teks untuk dianalisis sentimennya:")
+def remove_stopwords(text):
+    tokens = text.split()
+    filtered = [word for word in tokens if word not in stopwords]
+    return ' '.join(filtered)
 
-input_text = st.text_area("Teks Review", "")
+def stemming(text):
+    return stemmer.stem(text)
 
-if st.button("Analisis"):
-    if input_text.strip() == "":
-        st.warning("Silakan masukkan teks terlebih dahulu.")
-    else:
-        # Prediksi
-        prediction = model.predict([input_text])[0]
-        st.write(f"**Hasil Analisis Sentimen:** {prediction}")
-        if prediction == 'Positive':
-            st.success("Sentimen Positif 😊")
+def full_preprocess(text):
+    text = preprocessing(text)
+    text = remove_stopwords(text)
+    text = stemming(text)
+    return text
+
+# Streamlit Interface
+st.title('Sentiment Analysis & Text Processing Dashboard')
+
+menu = st.sidebar.selectbox('Menu', ['Dataset', 'Preprocessing', 'TF-IDF', 'Klasifikasi'])
+
+if menu == 'Dataset':
+    st.subheader('Dataset Film Jumbo')
+    st.write(film_df)
+
+    st.subheader('Dataset Stemming Jumbo')
+    st.write(stemming_df)
+
+    st.subheader('Dataset Preprocessed')
+    st.write(preprocessed_df)
+
+    st.subheader('Hasil Klasifikasi Naive Bayes')
+    st.write(classification_results)
+
+elif menu == 'Preprocessing':
+    st.subheader('Text Preprocessing')
+    text_input = st.text_area('Masukkan kalimat:')
+    if st.button('Proses'):
+        if text_input:
+            clean = preprocessing(text_input)
+            stop_removed = remove_stopwords(clean)
+            stemmed = stemming(stop_removed)
+            st.write('Hasil Cleaning:', clean)
+            st.write('Hasil Stopword Removal:', stop_removed)
+            st.write('Hasil Stemming:', stemmed)
         else:
-            st.error("Sentimen Negatif 😞")
+            st.warning('Mohon masukkan kalimat terlebih dahulu.')
 
-# Footer
-st.markdown("---")
-st.markdown("Aplikasi ini dibuat untuk keperluan analisis sentimen menggunakan model Naive Bayes.")
+elif menu == 'TF-IDF':
+    st.subheader('TF-IDF Vectorization')
+
+    tfidf_vectorizer = TfidfVectorizer()
+    X_tfidf = tfidf_vectorizer.fit_transform(preprocessed_df['preprocessed_text'])
+    tfidf_df = pd.DataFrame(X_tfidf.toarray(), columns=tfidf_vectorizer.get_feature_names_out())
+
+    st.write('TF-IDF Matrix:')
+    st.write(tfidf_df)
+
+elif menu == 'Klasifikasi':
+    st.subheader('Klasifikasi Sentimen')
+
+    text_input = st.text_area('Masukkan kalimat untuk diklasifikasi:')
+    if st.button('Klasifikasikan'):
+        if text_input:
+            processed = full_preprocess(text_input)
+            vectorizer = TfidfVectorizer()
+            X = vectorizer.fit_transform(preprocessed_df['preprocessed_text'])
+            nb_model = MultinomialNB()
+            nb_model.fit(X, preprocessed_df['label'])
+
+            X_input = vectorizer.transform([processed])
+            prediction = nb_model.predict(X_input)[0]
+
+            st.write(f'Hasil Prediksi Sentimen: **{prediction}**')
+        else:
+            st.warning('Mohon masukkan kalimat terlebih dahulu.')
