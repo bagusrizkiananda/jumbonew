@@ -2,6 +2,12 @@
 import streamlit as st
 import pickle
 import pandas as pd
+import gzip
+import pickle
+
+# Load GZIP model
+with gzip.open('naive_bayes_classifier.pkl.gz', 'rb') as file:
+    model = pickle.load(file)
 
 # Load Model
 with open('naive_bayes_classifier.pkl', 'rb') as file:
